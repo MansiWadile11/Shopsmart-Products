@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ShopSmart - Products</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --text: #000;
+      --card: #fff;
+    }
+    body.dark-mode {
+      --bg: #121212;
+      --text: #fff;
+      --card: #1e1e1e;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+    }
+    .product-image {
+      height: 200px;
+      object-fit: contain;
+    }
+    .cart-icon {
+      position: relative;
+      font-size: 1.2rem;
+    }
+    .cart-badge {
+      position: absolute;
+      top: -8px;
+      right: -10px;
+      background: red;
+      color: white;
+      font-size: 0.7rem;
+      border-radius: 50%;
+      padding: 2px 6px;
+    }
+    .card {
+      background-color: var(--card);
+    }
+    .form-control, .form-select {
+      background-color: var(--card);
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <!-- Header and Cart Section -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="text-success">🛍️ ShopSmart Products</h2>
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-sm btn-secondary" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+        <div class="cart-icon">
+          🛒 <span id="cartCount" class="cart-badge">0</span>
+          <a href="cart.html" class="btn btn-sm btn-outline-primary ms-2">View Cart</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order History Button -->
+    <div class="mt-4 text-center">
+      <a href="order-history.html" class="btn btn-sm btn-outline-success ms-2">Order History</a>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search by name...">
+      </div>
+      <div class="col-md-6">
+        <select id="categoryFilter" class="form-select">
+          <option value="">All Categories</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Product Grid -->
+    <div id="productGrid" class="row g-3"></div>
+
+    <!-- Pagination -->
+    <nav><ul id="pagination" class="pagination justify-content-center mt-4"></ul></nav>
+  </div>
+
+  <!-- Product Details Modal -->
+  <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="productModalLabel">Product Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="productModalContent">
+            <!-- Dynamic Product Details will be injected here -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allProducts = [], filteredProducts = [], currentPage = 1;
+    const itemsPerPage = 8;
+
+    fetch('https://dummyjson.com/products')
+      .then(res => res.json())
+      .then(data => {
+        allProducts = data.products;
+        filteredProducts = [...allProducts];
+        populateCategories(allProducts);
+        updatePagination();
+        renderPage(1);
+        updateCartCount();
+      });
+
+    function populateCategories(products) {
+      const filter = document.getElementById('categoryFilter');
+      const unique = [...new Set(products.map(p => p.category))];
+      unique.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+        filter.appendChild(opt);
+      });
+    }
+
+    function renderPage(page) {
+      currentPage = page;
+      const grid = document.getElementById('productGrid');
+      grid.innerHTML = '';
+      const start = (page - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      const pageItems = filteredProducts.slice(start, end);
+
+      if (pageItems.length === 0) {
+        grid.innerHTML = '<p class="text-center text-danger">No products found.</p>';
+        return;
+      }
+
+      pageItems.forEach(product => {
+        const col = document.createElement('div');
+        col.className = 'col-6 col-md-4 col-lg-3';
+        col.innerHTML = `
+          <div class="card h-100 shadow-sm">
+            <img src="${product.thumbnail}" class="card-img-top product-image" alt="${product.title}">
+            <div class="card-body">
+              <h6 class="product-title">${product.title}</h6>
+              <p><strong>₹${product.price}</strong></p>
+              <div class="mb-2">${getStars(product.rating)}</div>
+              <button class="btn btn-sm btn-outline-primary mb-1" onclick='openModal(${JSON.stringify(product)})'>Details</button>
+              <button class="btn btn-sm btn-success" onclick='addToCart(${product.id})'>Add to Cart</button>
+            </div>
+          </div>
+        `;
+        grid.appendChild(col);
+      });
+    }
+
+    function updatePagination() {
+      const pageCount = Math.ceil(filteredProducts.length / itemsPerPage);
+      const pagination = document.getElementById('pagination');
+      pagination.innerHTML = '';
+
+      for (let i = 1; i <= pageCount; i++) {
+        const li = document.createElement('li');
+        li.className = 'page-item' + (i === currentPage ? ' active' : '');
+        li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+        li.addEventListener('click', () => {
+          renderPage(i);
+          updatePagination();
+        });
+        pagination.appendChild(li);
+      }
+    }
+
+    function getStars(rating) {
+      const full = Math.floor(rating);
+      const half = rating - full >= 0.5 ? '½' : '';
+      return '★'.repeat(full) + half;
+    }
+
+    function openModal(product) {
+      const modalContent = document.getElementById('productModalContent');
+      modalContent.innerHTML = `
+        <div class="row">
+          <div class="col-md-6">
+            <img src="${product.thumbnail}" class="img-fluid" alt="${product.title}">
+          </div>
+          <div class="col-md-6">
+            <h4>${product.title}</h4>
+            <p><strong>₹${product.price}</strong></p>
+            <p><strong>Category:</strong> ${product.category}</p>
+            <p><strong>Brand:</strong> ${product.brand}</p>
+            <p><strong>Description:</strong> ${product.description}</p>
+            <div class="mb-2">${getStars(product.rating)}</div>
+            <button class="btn btn-success" onclick='addToCart(${product.id})'>Add to Cart</button>
+          </div>
+        </div>
+      `;
+      new bootstrap.Modal(document.getElementById('productModal')).show();
+    }
+
+    function addToCart(productId) {
+      let cart = JSON.parse(localStorage.getItem('cart')) || [];
+      if (!cart.includes(productId)) cart.push(productId);
+      localStorage.setItem('cart', JSON.stringify(cart));
+      updateCartCount();
+    }
+
+    function updateCartCount() {
+      const cart = JSON.parse(localStorage.getItem('cart')) || [];
+      document.getElementById('cartCount').textContent = cart.length;
+    }
+
+    document.getElementById('searchInput').addEventListener('input', filter);
+    document.getElementById('categoryFilter').addEventListener('change', filter);
+
+    function filter() {
+      const keyword = document.getElementById('searchInput').value.toLowerCase();
+      const category = document.getElementById('categoryFilter').value;
+
+      filteredProducts = allProducts.filter(p =>
+        p.title.toLowerCase().includes(keyword) &&
+        (category === '' || p.category === category)
+      );
+
+      updatePagination();
+      renderPage(1);
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+</body>
+</html>
